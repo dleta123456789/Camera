@@ -10,10 +10,32 @@
 #include <glm/gtc/type_ptr.hpp>
 
 using namespace std;
-//mixValue will be a global variable.
+/*
+* Camera speed is the speed at which camera will move.
+* mix value is the value with which we are mixing the two textures
+* rotate value is the  value of rotation.REMOVED
+* x_val, y_val are the the values with which we were transforming the objects
+* Camerapos,cameraup,camerafront are the postion and the direction which the camera looking at.
+* yaw,pitch,lastx,lasty,fov given
+*/
+
+
 float mixValue = 0.5f;
-float rotateValue = 0.0f;
-float x_val, y_val = 0.0f;
+
+//camera values
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
+
+bool firstMouse = true;
+float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
+float pitch = 0.0f;
+float lastX = 800.0f / 2.0;
+float lastY = 600.0 / 2.0;
+float fov = 45.0f;
+//render time
+float deltaTime = 0.0f; // Time between current frame and last frame
+float lastFrame = 0.0f; // Time of last frame
 /*
 *	Callback function to resize the GLFW window.
 *	Prototype for the function is here:
@@ -37,43 +59,69 @@ void processInput(GLFWwindow* window)
 	* we are checking if user has used escape key.
 	* if pressed we will close the window.
 	*/
-
+	float cameraSpeed = 2.5 * deltaTime;
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
-	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS){
 		if (mixValue < 2.0f) {
 			//cout << "Key UP";
 			mixValue = mixValue + 0.001f;
 		}
-	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+	}
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS){
 		if (mixValue > -1.0f) {
 			//cout << "Key Down";
 			mixValue = mixValue - 0.001f;
 		}
-	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-		//cout << "Key left";
-		rotateValue = rotateValue - 0.10f;
 	}
-	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-		//cout << "Key left";
-		rotateValue = rotateValue + 0.10f;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		cameraPos += cameraSpeed * cameraFront;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		cameraPos -= cameraSpeed * cameraFront;
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) *cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+}
+void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+	/*
+	* check if this is first time we get mouse input
+	* Get mouse postion with mouse_callback
+	* decide the center of screen postion so we can get offset for mouse
+	* calculate the offset
+	* multiply the senseitive withh offset to reduce the speed at which we move camera
+	* restrict pitch movmement so we dont have wierd camera views. we can do this for other as well
+	* calulate front which is the direction
+	*/
+	if (firstMouse)
+	{
+		lastX = xpos;
+		lastY = ypos;
+		firstMouse = false;
 	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		//cout << "Key left";
-		x_val = x_val - 0.0010f;
-	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		//cout << "Key left";
-		x_val = x_val + 0.0010f;
-	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		//cout << "Key left";
-		y_val = y_val + 0.0010f;
-	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		//cout << "Key left";
-		y_val = y_val - 0.0010f;
-	}
+	float xoffset = xpos - lastX;
+	float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+	lastX = xpos;
+	lastY = ypos;
+
+	float sensitivity = 0.1f; // change this value to your liking
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	yaw += xoffset;
+	pitch += yoffset;
+
+	// make sure that when pitch is out of bounds, screen doesn't get flipped
+	if (pitch > 89.0f)
+		pitch = 89.0f;
+	if (pitch < -89.0f)
+		pitch = -89.0f;
+
+	glm::vec3 front;
+	front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+	front.y = sin(glm::radians(pitch));
+	front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+	cameraFront = glm::normalize(front);
 }
 
 //main code file
@@ -94,6 +142,8 @@ int main()
 		return -1;
 	}
 	glfwMakeContextCurrent(window);
+	glfwSetCursorPosCallback(window, mouse_callback);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	//
 	//Initialize GLAD and check if its working. 
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -127,6 +177,7 @@ int main()
 	// 
 	//global openGl states:
 	glEnable(GL_DEPTH_TEST);
+	
 
 	//----------------------------------- Vertex and config data here 
 
@@ -317,6 +368,12 @@ int main()
 	while (!glfwWindowShouldClose(window))
 	{
 		/*
+		* frame time data
+		*/
+		float currentFrame = glfwGetTime();
+		deltaTime = currentFrame - lastFrame;
+		lastFrame = currentFrame;
+		/*
 		*input
 		*/
 		processInput(window);
@@ -338,22 +395,6 @@ int main()
 
 		ourShader.use();
 
-		//camera
-		/*
-		* Camerapostion is the starting location of the camera
-		* Cameratarget is the direction at which we want caemra to look at
-		* Cameradirection is the diretion of camera from postion to target
-		* Camera up is the vector which points upward in world space
-		* cameraRight represents the postive x axis
-		* cameraUP is the camera's postive y axis
-		*/
-		glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-		glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-		glm::vec3 cameraDirection = glm::normalize(cameraPos - cameraTarget);
-		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-		glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraDirection));
-		glm::vec3 cameraUp = glm::cross(cameraDirection, cameraRight);
-
 		//Model 
 		glm::mat4 model = glm::mat4(1.0f);
 		/*
@@ -364,25 +405,10 @@ int main()
 		//model = glm::rotate(model, glm::radians(rotateValue),glm::vec3(0.0f, 1.0f, 0.0f));
 		//rotation using time
 		//model = glm::rotate(model, (float)glfwGetTime() *glm::radians(50.0f), glm::vec3(1.0f, 1.0f, 0.0f));
-
-		//View Outdated
-		/*
-		* GLM Translate Parameters:
-		* matrix4*4
-		* vector 3 with x,y,z components
-		glm::mat4 view = glm::mat4(1.0f);
-		view = glm::translate(view, glm::vec3(x_val, y_val, -3.0f));
-		*/
-		//Camera View
-		/*
-		* lootAt is given the postion,target and the up vector
-		* 
-		*/
-		const float radius = 10.0f;
-		float camX = sin(glfwGetTime()) * radius;
-		float camZ = cos(glfwGetTime()) * radius;
+		
 		glm::mat4 view;
-		view = glm::lookAt(glm::vec3(camX, 0.0f, camZ),glm::vec3(0.0f, 0.0f, 0.0f),glm::vec3(0.0f, 1.0f, 0.0f));
+
+		view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
 		//Projection
 		glm::mat4 projection = glm::mat4(1.0f);
@@ -418,7 +444,7 @@ int main()
 			//float angle = 20.0f * i;
 			if (i % 3 == 0) {
 				float angle = 20.0f;
-				model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
+				model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
 			}
 			ourShader.setMat4("model", model);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
